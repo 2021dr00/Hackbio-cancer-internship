@@ -8,7 +8,8 @@ Sanger sequencing was the first technique used to sequence RNA but was expensive
 
 The workflow of RNA-seq has several stages which include the extraction of RNA, reverse transcription into cDNA, adapted ligation, amplification and sequencing (Fig1).
 
-![logo]("file:///C:/Users/Dharshana/Downloads/Workflow%20of%20RNA%20seq.png")
+![Workflow of RNA seq](https://github.com/user-attachments/assets/2dc1a49b-c9bc-4ec2-a4b1-8c2e24d1977c)
+
 
 Fig1. Workflow of RNA sequencing
 
