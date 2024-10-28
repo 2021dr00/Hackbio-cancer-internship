@@ -1,0 +1,442 @@
+---
+title: "Stage 3 Task"
+output: html_notebook
+---
+```{r}
+#------------------------------------Downloading the dataset-----------------------------
+#load the necessary libraries
+library("TCGAbiolinks")
+library('ggplot2')
+library(SummarizedExperiment)
+library(data.table)
+library(dplyr)
+library(gplots)
+library("biomaRt")
+
+getProjectSummary("TCGA-SARC") #select your type
+# sb<- read.csv("Selected Barcodes.csv", row.names = 1) #if we already have list we want to use
+#Preparing the query
+SARCq<- GDCquery(project = "TCGA-SARC",                    #project
+                 data.category = "Transcriptome Profiling", #to obtain RNA-seq data
+                 data.type = "Gene Expression Quantification", #type of analysis
+                 sample.type = c("Metastatic", "Primary Tumor", "Recurrent Tumor")) #to obtain only tumor samples and not normal samples, we can use barcode = sb$x) #
+GDCdownload(SARCq) #downloading the dataset
+sarc.data<-GDCprepare(SARCq) #Preparing the dataset
+table(sarc.data$sample_type) #checking the type of samples to ensure no normal samples
+
+
+#Obtaing the subgroups - age based classification
+
+Metadata_1<- data.frame("barcode"= sarc.data$barcode,
+                        "age_at_diagnosis"= sarc.data$age_at_diagnosis)
+
+#checking for missing or 0 values in age
+sum(is.na(Metadata_1$age_at_diagnosis)) #checking for na's
+Metadata_na_omitted <-na.omit(Metadata_1) #removing NA
+sum(is.na(Metadata_na_omitted$age_at_diagnosis))
+sum(Metadata_na_omitted$age_at_diagnosis<0) #checking if there are any 0's
+
+#since age_at_diagnosis is in days and conversion factor is 1 year = 365.25 days, we can use  14610 as the cutoff for 40 years and 6574.5 for 18 years
+Metadata_na_omitted$age_group <- ifelse(Metadata_na_omitted$age_at_diagnosis<14610 & Metadata_na_omitted$age_at_diagnosis>=6574.5, "18-40", ">=40")
+Group1_metadata<- Metadata_na_omitted[Metadata_na_omitted$age_group == '18-40',] #grouping samples with age between 18-40
+Group2_metadata<- Metadata_na_omitted[Metadata_na_omitted$age_group == '>=40',] #grouping samples with age >=40
+
+#select the unstranded dataset
+sarc.raw.data<-assays(sarc.data) #using summarized experiments module 
+dim(sarc.raw.data$unstranded) #since we are exploring both strands
+
+#Downsizing to 20 samples in each age group (>=40 and 18-40)
+selectedBarcodes<- c(sample(Group1_metadata$barcode,20), sample(Group2_metadata$barcode,20)) # selecting random samples from group 1 and group 2
+selectedBarcodes
+#obtaining the list of barcodes for future selection purpose
+#write.csv(selectedBarcodes, file="Selected Barcodes.csv", row.names= TRUE)
+
+#obtaining the unstranded data of the selected barcodes
+selectedData<-sarc.raw.data$unstranded[,c(selectedBarcodes)]
+dim(selectedData)
+View(selectedData)
+
+#Obtaining the new Meta data file with only selected sample 
+new_meta_data<-(Metadata_na_omitted[Metadata_na_omitted$barcode %in% selectedBarcodes,])
+
+#Downloading the and metadata file for ML analysis
+#write.csv(new_meta_data, file ="Metadata_Final.csv", row.names =TRUE)
+
+#Data normalization and filtering
+#Normalization - based on sequencing depth and gene length to ensure comparable expression levels in the samples
+normData<- TCGAanalyze_Normalization(tabDF = selectedData, geneInfo = geneInfoHT, method= "geneLength")
+# Filtering out lowly expressed genes with a quantile normalization cutoff of 0.25
+filtData<- TCGAanalyze_Filtering(tabDF = normData,
+                                 method = "quantile",
+                                 qnt.cut = 0.25) 
+
+#Obtaining the filtered data for ML analysis
+#write.csv(filtData, file ="Filtered_data_final.csv", row.names = TRUE)
+
+```
+
+```{r}
+#------------------------------------------Diferential Gene Expression------------------------------------
+
+#Differential Gene Expression analysis using TCGAanalyze_DEA
+selectResults<-TCGAanalyze_DEA(mat1 = filtData[, c(selectedBarcodes)[1:20]], #1st group is 18-40
+                               mat2 = filtData[, c(selectedBarcodes)[21:40]], #2nd group is >=40
+                               Cond1type = "Age 18-40", #Defining the condition 1
+                               Cond2type = "Age >=40", #Defining condition 2
+                               pipeline = "edgeR") #using edgeR pipeline since it gives better fit to read counts data
+View(selectResults) 
+
+#Differential expression levels for the different conditions adds the average values for each group
+selectResults.levels<-
+  TCGAanalyze_LevelTab(selectResults,"Age 18-40" ,"Age >=40", 
+                       filtData[,c(selectedBarcodes)[1:20]],
+                       filtData[,c(selectedBarcodes)[21:40]])
+dim(selectResults)
+dim(selectResults.levels)
+
+#Setting the logfc and p value filter
+selectResults.levels$diff_exp <-"No"
+selectResults.levels$diff_exp[selectResults.levels$logFC > 1.5 & selectResults.levels$FDR <0.005] <-"UP"
+selectResults.levels$diff_exp[selectResults.levels$logFC < (-1.5) & selectResults.levels$FDR <0.005] <-"DOWN"
+selectResults.levels$diff_exp[selectResults.levels$Highlight == "In ML" ] <-"In ML"
+  
+table(selectResults.levels$diff_exp)
+write.csv(selectResults.levels, file ="All DGEA results.csv", row.names = TRUE)
+
+#Generating a volcano plot
+ggplot(data = selectResults.levels, aes(x = logFC, y = (- log10(FDR)), col = diff_exp)) +  #basic Volcano plot
+  geom_vline(xintercept = c(-1.5, 1.5), col = "blue", linetype = 'dashed') + #setting the threshold to 1.5
+  geom_hline(yintercept = -log10(0.005), col = "red", linetype = 'dashed') + #setting the significance to 0.005
+  geom_point() +  #make a continuous plot
+  scale_color_manual(values = c("blue", "grey", "red"), # to set the colors of our variable
+                     labels = c("Downregulated", "Not significant", "Upregulated")) + # to set the labels we want to overwrite the categories from the dataframe (UP, DOWN, No)
+  labs(color = 'Gene condition', x= expression("log"[2]*"FoldChange"), y = expression("-log"[10]*"p-adj value"))+
+  coord_cartesian(ylim = c(0, 40), xlim = c(-10, 10)) + # to set the limits of the axis
+  ggtitle("Volcano plot")
+
+#Collecting the list of up and down regulated genes 
+DE_results<- selectResults.levels[selectResults.levels$diff_exp == "UP" | selectResults.levels$diff_exp == "DOWN",]
+
+#Upregulated and downregulated genes
+upreg.genes<- rownames((selectResults.levels[selectResults.levels$diff_exp =='UP',]))
+dnreg.genes<- rownames((selectResults.levels[selectResults.levels$diff_exp =='DOWN',]))
+
+#Obtaining the list of significant differentially regulated genes
+write.csv(DE_results, file ="DE_sig_results.csv", row.names =TRUE)
+
+#Top 5 Up and Down regulated gene list for literature study
+mart<-useMart(biomart = "ensembl", dataset = "hsapiens_gene_ensembl")
+up_top5<- getBM(attributes = c('ensembl_gene_id', 'hgnc_symbol'), #what are we converting
+                filters = 'ensembl_gene_id', # data present in
+                values = rownames(DE_results[order(DE_results$logFC, decreasing = TRUE),])[1:5],
+                mart = mart)$hgnc_symbol
+dn_top5<- getBM(attributes = c('ensembl_gene_id', 'hgnc_symbol'), 
+                filters = 'ensembl_gene_id', 
+                values = rownames(DE_results[order(DE_results$logFC, decreasing =TRUE),])[(nrow(DE_results)-4):nrow(DE_results)], 
+                mart = mart)$hgnc_symbol
+
+#------------------------------------------------Heatmap Visualization----------------------------------
+dim(DE_results)
+heat.data<-filtData[rownames(DE_results),] # selecting the genes that are significantly differentiated from the filtered data
+
+#color based on the age groups of the samples -column colors
+cancer.type<-c(rep("18-40", 20), rep(">=40",20))
+ccodes<-c()
+for(i in cancer.type)
+{
+  if(i == ">=40")
+    ccodes <- c(ccodes,"red")
+  else
+    ccodes <- c(ccodes, "blue")
+}
+ccodes
+
+#Plotting Heatmap
+par(oma = c(1,1,1,1)) #Setting outter margins
+par(mar = c(1,1,1,1)) #setting inner plot margins
+par(cex.main = 0.75) #size of the title
+heatmap.2(as.matrix(heat.data),
+          col = hcl.colors(100, palette = "Blue-Red 3"), # Diverging palette
+          Colv = F,                         # Cluster columns
+          Rowv = F,                         # Cluster rows
+          dendrogram = "none",              # No cluster both rows and columns
+          trace = "none",                   # Remove trace lines
+          scale = "row",                    # Standardizes rows (genes) across samples
+          sepcolor = "black",               #separate the columns
+          key = TRUE,                       # Show color key
+          cexRow = 0.5,                     # Adjust row label size
+          cexCol = 0.5,                     # Adjust column label size
+          margins = c(9, 7),                # Adjust margins to fit labels
+          main = "Heatmap", #Title
+          xlab = "Samples",                 #X axis label
+          ylab = "Genes",                   #Y axis label
+          key.title = "Expression Level",
+          ColSideColors = ccodes)  # colums are the samples and are color coded based on the previous for loop.
+legend("topright", legend = c(">=40 age group", "18-40 age group"), fill = c("red", "blue"), title = "Column Colors", cex = 0.8)
+```
+
+```{r}
+#---------------------------------Functional enrichment analysis using EA_plot-------------------------------------
+#For the TCGA EA analysis tool the gene names have to be in genes names not Ensembl ids so convert using biomart
+
+upreg.genes_symbol<- getBM(attributes = c('ensembl_gene_id', 'hgnc_symbol'), #what are we converting
+                    filters = 'ensembl_gene_id', # data present in
+                    values = upreg.genes, #the list
+                    mart = mart)$hgnc_symbol # will have some empty genes names as not found in database
+dnreg.genes_symbol<- getBM(attributes = c('ensembl_gene_id', 'hgnc_symbol'),
+                    filters = 'ensembl_gene_id',
+                    values = dnreg.genes,
+                    mart = mart)$hgnc_symbol
+
+#Performing Enrichment anlysis
+up.EA<- TCGAanalyze_EAcomplete(TFname = "Upregulated", upreg.genes_symbol) # produces result based on BP, CC, MF and Pathways(P)
+dn.EA<- TCGAanalyze_EAcomplete(TFname = "Downregulated", dnreg.genes_symbol)
+View(data.frame(up.EA$ResPat))
+dn.EA$ResPat$`Top Pathway n. 20 of 589`
+
+#Visualization
+TCGAvisualize_EAbarplot(tf = rownames(up.EA$ResBP),#Rownames
+                        GOBPTab = up.EA$ResBP, #results for BP
+                        GOMFTab = up.EA$ResMF, #results for MF
+                        GOCCTab = up.EA$ResCC, #results for CC
+                        PathTab = up.EA$ResPat, #results for PAthway
+                        nRGTab = upreg.genes_symbol, #number of genes in the list
+                        nBar = 5, #max number of bars is 5 but can be increased to 10
+                        text.size = 2, # 2 
+                        fig.width = 30, # size of figure
+                        fig.height = 15) #generates a pdf in the working directory
+
+
+TCGAvisualize_EAbarplot(tf = rownames(dn.EA$ResBP),
+                        GOBPTab = dn.EA$ResBP, 
+                        GOMFTab = dn.EA$ResMF, 
+                        GOCCTab = dn.EA$ResCC, 
+                        PathTab = dn.EA$ResPat, 
+                        nRGTab = dnreg.genes_symbol, 
+                        nBar = 5, 
+                        text.size = 2, 
+                        fig.width = 30,
+                        fig.height = 15)
+
+```
+
+```{r}
+#-----------------------------------Machine learning model------------------------------
+# Load necessary libraries
+install.packages("caret")
+install.packages("DALEX")
+install.packages("pROC")
+install.packages("randomForest")
+
+library(caret)
+library(DALEX)
+library(pROC)
+library(randomForest)
+
+# Step 1: Data preparation and transformation
+trans = as.data.frame(t(filtData))
+
+# View the transposed data
+head(trans)
+
+# Step 2: Selecting top genes based on variability (standard deviation) and data pre processing 
+SD = apply(trans, 2, sd)
+SD = sort(SD, decreasing = TRUE)
+top_genes = names
+
+# trans to top 1000 genes based on SD
+trans = trans[, names(SD)[1:1000]]
+
+# Check the dimensions
+dim(trans)
+
+#preprocessing
+#Removing NZV
+zero=preProcess(trans, method="nzv", uniqueCut=15)
+trans=predict(zero, trans)
+
+#Center the data
+center=preProcess(trans, method="center")
+trans=predict(center, trans)
+
+#Removing highly corelated colums
+corr=preProcess(trans, method='corr',  cutoff= 0.5)
+trans=predict(corr, trans) 
+
+
+
+# Step 3: Merge with metadata based on sample IDs
+trans$Sample_ID <- rownames(trans)
+Metadata_Final<- new_meta_data[,-2]
+Metadata_Final$age_group<-ifelse(Metadata_Final$age_group =="18-40", 0, 1)
+merged_data <- merge(trans, Metadata_Final, by.x = "Sample_ID", by.y = "barcode", all.x = TRUE)
+
+# View the merged data
+head(merged_data)
+
+# Reorder columns to move 'age_group' right after the first column
+merged_data <- merged_data[, c("Sample_ID", "age_group", setdiff(names(merged_data), c("Sample_ID", "age_group")))]
+head(merged_data)
+
+# Step 4: Convert all columns except 'age_group' to numeric
+library(dplyr)
+numeric_data <- merged_data %>% mutate(across(-age_group, as.numeric))
+
+# Check for warnings/NA during conversion
+summary(numeric_data)
+
+# Drop the first column ('Sample_ID')
+numeric_data <- numeric_data[, -1]
+
+# Step 5: Split the data into training and testing sets
+set.seed(123)
+trainIndex <- createDataPartition(numeric_data$age_group, p = 0.7, list = FALSE, times = 1)
+
+# Create training and testing datasets
+train_data <- numeric_data[trainIndex, ]
+test_data <- numeric_data[-trainIndex, ]
+
+# View the dimensions of train and test datasets
+dim(train_data)
+dim(test_data)
+
+# Step 6: Preprocessing (scaling and centering)
+preProc <- preProcess(train_data[, -which(names(train_data) == "age_group")], method = c("center", "scale"))
+train_data_scaled <- predict(preProc, train_data)
+test_data_scaled <- predict(preProc, test_data)
+
+# Step 7: Fit a random forest model
+
+# Ensure the target variable is a factor
+numeric_data$age_group <- as.factor(numeric_data$age_group)
+
+# Fit the random forest model
+rf_model <- randomForest(age_group ~ ., data = numeric_data, ntree = 100)
+print(rf_model)
+
+# Step 8: Model evaluation using confusion matrix
+predictions <- predict(rf_model, newdata = test_data)
+confusion_matrix <- confusionMatrix(factor(predictions), factor(test_data$age_group))
+print(confusion_matrix)
+
+# Step 9: Calculating additional metrics (Precision, Recall, F1-Score)
+precision <- posPredValue(confusion_matrix$table)
+recall <- sensitivity(confusion_matrix$table)
+f1_score <- (2 * precision * recall) / (precision + recall)
+
+# Display the results
+cat("Precision:", precision, "\n")
+cat("Recall:", recall, "\n")
+cat("F1 Score:", f1_score, "\n")
+
+# Step 10: Cross-validation using K-Fold method
+train_control <- trainControl(method = "cv", number = 10)
+model_cv <- train(age_group ~ ., data = train_data, method = "rf", trControl = train_control)
+print(model_cv)
+
+# Step 11: Feature importance (Top 20 genes)
+importance <- randomForest::importance(rf_model)
+importance_df <- as.data.frame(importance)
+importance_df$Feature <- rownames(importance_df)
+
+# Sort by MeanDecreaseGini and select top 20 features
+importance_df <- importance_df[order(-importance_df$MeanDecreaseGini), ]
+top_n <- 20
+importance_df_top <- importance_df[1:top_n, ]
+
+# Step 12: Plotting top 20 features using ggplot2
+library(ggplot2)
+ggplot(importance_df_top, aes(x = reorder(Feature, -MeanDecreaseGini), y = MeanDecreaseGini)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(title = paste("Top", top_n, "Feature Importance"), x = "Features", y = "Importance (MeanDecreaseGini)") +
+  theme(axis.text.y = element_text(size = 8))
+
+# Step 13: Boxplot for age group and top 20 gene expression
+library(reshape2)
+top_20_genes <- importance_df_top$Feature
+expression_data <- merged_data[, c("age_group", top_20_genes)]
+expression_data$age_group <- as.factor(expression_data$age_group)
+melted_data <- melt(expression_data, id.vars = "age_group", variable.name = "Gene", value.name = "Expression")
+
+# Boxplot generation
+ggplot(melted_data, aes(x = age_group, y = Expression, fill = age_group)) +
+  geom_boxplot() +
+  facet_wrap(~ Gene, scales = "free", ncol = 5) +
+  labs(title = "Gene Expression Across Age Groups", x = "Age Group", y = "Gene Expression") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Step 14: Log transformation for better visualization
+melted_data$Expression <- trimws(melted_data$Expression)
+melted_data$Expression <- as.numeric(melted_data$Expression)
+sum(is.na(melted_data$Expression))
+melted_data <- na.omit(melted_data)
+melted_data$Expression <- log1p(melted_data$Expression)
+
+# Generate the violin plot with log-transformed data
+ggplot(melted_data, aes(x = age_group, y = Expression, fill = age_group)) +
+  geom_violin(trim = FALSE, alpha = 0.5) +
+  geom_boxplot(width = 0.1, position = position_dodge(width = 0.9)) +
+  facet_wrap(~ Gene, scales = "free", ncol = 5) +
+  labs(title = "Log-Transformed Gene Expression Across Age Groups", x = "Age Group", y = "Log Gene Expression") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Step 15: Evaluating the model performance using ROC curve
+predictions <- predict(rf_model, test_data, type = "prob")[, 2]
+roc_curve <- roc(test_data$age_group, predictions)
+
+# Plot ROC curve
+plot(roc_curve, col = "blue", lwd = 2, main = "ROC Curve")
+abline(a = 0, b = 1, lty = 2, col = "gray")
+auc_value <- auc(roc_curve)
+print(paste("AUC:", auc_value))
+
+```
+
+```{r}
+#--------------------------------------------Supplementary Information-------------------------------------------
+#------------Compare the significant genes identified by ML model and DGEA---------------
+ggplot(selectResults.levels, aes(x = logFC, y = -log10(FDR))) +
+    geom_point(aes(color = diff_exp, shape = Highlight), alpha = 0.8, size = 1.5) + # for DGEA analysis
+    geom_point(data = subset(selectResults.levels, Highlight == "In ML"), 
+               aes(x = logFC, y = -log10(FDR), shape = "In ML"), 
+               size = 1.5, stroke = 1.2) + # Show legend for ML feature points
+    geom_vline(xintercept = c(-1.5, 1.5), col = "blue", linetype = 'dashed') +  # LogFC thresholds
+    geom_hline(yintercept = -log10(0.005), col = "red", linetype = 'dashed') +  # FDR significance threshold
+    scale_color_manual(values = c("DOWN"= "blue", 
+                                  "No" ="grey", 
+                                  "UP"="red"), # to set the colors of our variable
+                       labels = c("Downregulated", "Not significant", "Upregulated")) + 
+    labs(color = 'Gene condition based on DGEA', 
+         shape = "ML model feature") +  # Label for shape legend
+    coord_cartesian(ylim = c(0, 40), xlim = c(-10, 10)) +
+    ggtitle("Volcano Plot representing significant genes from DGEA and ML model")
+
+
+#--------------------------------------Summary of selected Patient demographics----------------------------
+sample_info<-data.frame("Barcode"= sarc.data$barcode, "Primary_diagnosis"= sarc.data$primary_diagnosis, "Gender"= sarc.data$gender, "Sample_type"= sarc.data$sample_type, "age_at_diagnosis"= sarc.data$age_at_diagnosis)
+sample_info<- (sample_info[sample_info$Barcode %in% selectedBarcodes,])
+
+sample_info$age_group <- ifelse(sample_info$age_at_diagnosis <14610 & sample_info$age_at_diagnosis>=6574.5, "18-40", ">=40")
+colnames(sample_info)
+data_summary <- sample_info %>%
+  group_by(age_group, Primary_diagnosis, Sample_type,Gender) %>%
+  summarize(PatientCount = n())
+
+ggplot(data_summary, aes(x = age_group, y = Primary_diagnosis, size = PatientCount, colour = Gender)) +
+  geom_point(alpha = 0.6) +
+  labs(title = "Bubble Chart of Number of Patients by Age Group, Diagnosis and Gender",
+       x = "Age Group",
+       y = "Diagnosis",
+       size = "Number of Patients",
+       color = "Gender")
+table(sample_info$Primary_diagnosis[sample_info$age_group=='>=40'])
+table(sample_info$Gender[sample_info$age_group=='>=40'])
+table(sample_info$Primary_diagnosis[sample_info$age_group=='18-40'])
+table(sample_info$Gender[sample_info$age_group=='18-40'])
+
+```
+
+```
