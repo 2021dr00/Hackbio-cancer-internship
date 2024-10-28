@@ -2,7 +2,7 @@
 
 Authors (@slack): Vidhyavathy Nagarajan (@Vidhya2205), Ahmed Hasan (@Hasan), Nusrat Afrin (@Nusrat), Shreya Karandikar (@Shreya), Dharshana Rajkumar (@Dharshana), Maram Nhaili (@Maram), Mary Dhevanayagam (@Shanu) 
 
- Link to GitHub Repository and GitHub Code - [Link to Repo](https://github.com/marydhevanayagam/TCGA_LGG-IDH-expression-analysis-HackBio-stage-4), [Link to code](https://github.com/marydhevanayagam/TCGA_LGG-IDH-expression-analysis-HackBio-stage-4/blob/main/Code/RCode.Rmd) 
+ Link to GitHub Repository and GitHub Code - [Link to Repo](https://github.com/2021dr00/Hackbio-cancer-internship/tree/main/Stage4), [Link to code](https://github.com/2021dr00/Hackbio-cancer-internship/blob/main/Stage4/RCode.Rmd) 
 
  ## 1. **Introduction** 
 
