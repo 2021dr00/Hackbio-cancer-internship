@@ -5,7 +5,7 @@
 
 <!--StartFragment-->Authors (@slack) - Vidhyavathy Nagarajan(@vidhya2205), Ahmed( @Hasan) ,  Shreya Karandikar (@Shreya), Dharshana Rajkumar(@Dharshana), Maram Nhaili(@Maram), Rutuja Pangare (@rutuja0502), Zaka Ullah (@Zaka)
 
-Link to Code and Readme Github repository - [Github Repo](https://github.com/ahmedsArena/code_stage-2)  [Github link to Code](https://github.com/ahmedsArena/code_stage-2/blob/main/R_code.Rmd)
+Link to Code and Readme Github repository - [Github Repo](https://github.com/2021dr00/Hackbio-cancer-internship/tree/main/Stage2)  [Github link to Code](https://github.com/2021dr00/Hackbio-cancer-internship/blob/main/Stage2/R_code.Rmd)
 
 ## 1. Importance of Color Selection in Data Visualization:
 
