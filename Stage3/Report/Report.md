@@ -4,7 +4,7 @@
 
    Authors (@slack): Vidhyavathy Nagarajan (@Vidhya2205), Ahmed Hasan (@Hasan), Nusrat Afrin (@Nusrat), Shreya Karandikar (@Shreya), Dharshana Rajkumar (@Dharshana), Maram Nhaili (@Maram), Mary Dhevanayagam (@Shanu), Henry Momanyi (@Henry)
    
-   Link to GitHub Repository and Github Code - [****Link to code****](https://github.com/vidhya2205/TCGA-analysis_SARC_DEA_ML_stage3_HackBio/blob/main/Code/Code_BM%2BML.Rmd) **,** [****Link to Repo****](https://github.com/vidhya2205/TCGA-analysis_SARC_DEA_ML_stage3_HackBio).
+   Link to GitHub Repository and Github Code - [****Link to code****](https://github.com/2021dr00/Hackbio-cancer-internship/blob/main/Stage3/Code_BM%2BML.Rmd) **,** [****Link to Repo****](https://github.com/2021dr00/Hackbio-cancer-internship/tree/main/Stage3).
 
    ## 1. **Introduction**
 
@@ -29,7 +29,7 @@
   </p>
   <p align = center><sup>Figure 3.2: Flow chart summarizing Biomarker discovery methodology </sup></p>
   
-The dataset was derived from The Cancer Genome Atlas (TCGA) project, particularly the "TCGA-SARC" cohort (sarcoma samples). The samples were separated into two age groups: 18-40 and ≥40 years. Demographics of the groups are shown in [Supplementary\_information](https://github.com/vidhya2205/TCGA-analysis_SARC_DEA_ML_stage3_HackBio/blob/main/Report/Supplementary%20Information.md) Figure 1 The ones with missing or inaccurate age data were eliminated. Then, a random subset of 20 from each group was chosen for analysis. Unstranded gene expression data were normalized by gene length and read depth, and further quantile filtered (cutoff: 0.25) to eliminate low-expression genes. Differential expression analysis was done, with genes identified as upregulated, downregulated, or non-significant based on a log fold change (logFC) threshold of ±1.5 and FDR <0.005. Volcano plots and heat maps were created to show differentially expressed genes. Furthermore, functional enrichment analysis was conducted, and results of the top enriched pathways based on fold enrichment and FDR values were presented.
+The dataset was derived from The Cancer Genome Atlas (TCGA) project, particularly the "TCGA-SARC" cohort (sarcoma samples). The samples were separated into two age groups: 18-40 and ≥40 years. Demographics of the groups are shown in [Supplementary\_information](https://github.com/2021dr00/Hackbio-cancer-internship/blob/main/Stage3/Report/Supplementary%20Information.md) Figure 1 The ones with missing or inaccurate age data were eliminated. Then, a random subset of 20 from each group was chosen for analysis. Unstranded gene expression data were normalized by gene length and read depth, and further quantile filtered (cutoff: 0.25) to eliminate low-expression genes. Differential expression analysis was done, with genes identified as upregulated, downregulated, or non-significant based on a log fold change (logFC) threshold of ±1.5 and FDR <0.005. Volcano plots and heat maps were created to show differentially expressed genes. Furthermore, functional enrichment analysis was conducted, and results of the top enriched pathways based on fold enrichment and FDR values were presented.
 
    ### **2.2. Machine Learning** 
 
@@ -48,7 +48,7 @@ Data was transposed and merged with the meta\_data to include the target variabl
 
 ####       **3.1.1. Differential gene expression analysis (DGEA)**
 
-Based on the DGEA, 2376 significant differentially expressed genes (DEG) were identified from the \~31,000 genes, between the two groups, using a log fold change and p-value cutoff. Of these, 848 and 1877 genes were up-regulated and down-regulated respectively, in the AYA patient group. The volcano plot (figure 4.1) shows the distribution of DEGs (\~31,000), with highly significant genes displayed in the top right (blue) and left (red) quadrants. Heatmap (figure 4.2) of the significant DEG (2376 genes), shows a pattern of dysregulation specific to each group as clustered by column colors (red-OA and blue-AYA patients). The section 2 in [Supplementary\_information](https://github.com/vidhya2205/TCGA-analysis_SARC_DEA_ML_stage3_HackBio/blob/main/Report/Supplementary%20Information.md) provides a detailed overview of the top dysregulated genes and their role in cancer.
+Based on the DGEA, 2376 significant differentially expressed genes (DEG) were identified from the \~31,000 genes, between the two groups, using a log fold change and p-value cutoff. Of these, 848 and 1877 genes were up-regulated and down-regulated respectively, in the AYA patient group. The volcano plot (figure 4.1) shows the distribution of DEGs (\~31,000), with highly significant genes displayed in the top right (blue) and left (red) quadrants. Heatmap (figure 4.2) of the significant DEG (2376 genes), shows a pattern of dysregulation specific to each group as clustered by column colors (red-OA and blue-AYA patients). The section 2 in [Supplementary\_information](https://github.com/2021dr00/Hackbio-cancer-internship/blob/main/Stage3/Report/Supplementary%20Information.md) provides a detailed overview of the top dysregulated genes and their role in cancer.
 
 <p align = center float="left">
   <kbd>
@@ -66,7 +66,7 @@ Based on the DGEA, 2376 significant differentially expressed genes (DEG) were id
 
    ####       **3.1.2. Functional enrichment analysis (FEA)**
 
-FEA of the upregulated and downregulated genes resulted in a set of pathways that are enriched  with the gene sets respectively. A total of 4686 pathways were identified by the analysis (2423 in Biological Process (BP), 1157 in Molecular Function (MF), 517 in Cellular components(CC) and 589 KEGG Pathways (KP))  for each gene set. From these the top enriched pathways are identified and plotted based on enrichment and p-value (FDR) as illustrated in Fig 3.3 and Fig. 3.4.  The section 3 in [Supplementary\_information](https://github.com/vidhya2205/TCGA-analysis_SARC_DEA_ML_stage3_HackBio/blob/main/Report/Supplementary%20Information.md) provides a detailed overview of the top enriched KEGG pathways and their role in cancer.
+FEA of the upregulated and downregulated genes resulted in a set of pathways that are enriched  with the gene sets respectively. A total of 4686 pathways were identified by the analysis (2423 in Biological Process (BP), 1157 in Molecular Function (MF), 517 in Cellular components(CC) and 589 KEGG Pathways (KP))  for each gene set. From these the top enriched pathways are identified and plotted based on enrichment and p-value (FDR) as illustrated in Fig 3.3 and Fig. 3.4.  The section 3 in [Supplementary\_information](https://github.com/2021dr00/Hackbio-cancer-internship/blob/main/Stage3/Report/Supplementary%20Information.md) provides a detailed overview of the top enriched KEGG pathways and their role in cancer.
 <p align = center>
   <kbd>
 <img src="https://lh7-rt.googleusercontent.com/docsz/AD_4nXfh2bYXUy07vUSYVIP51GsL0B_5eqrRhIUTG37WkmT3CBOOs80FPygdjR-5nx1dfymP7xkVzebXQy03NU_urtO_ieN7aKMGArea16zs7DFUhSWds_tL9jmh1a2S9Wd0bycvRdx549EsmHVc8e80-Efr3W6j?key=xvw3JB3jr1ZpthYtl54CPw" width="700" height = "300">
@@ -101,7 +101,7 @@ K-fold validation showing 100% accuracy, 1.0 value for sensitivity, specificity,
 
 **Age group:**
 
-Several genes, such as ENSG00000173369 and ENSG00000124491, were more expressed in the ≥40 groups, while others, like ENSG00000173388 and ENSG00000119582, showed higher expression in the younger group. These differences suggest that these genes may serve as molecular markers for aging. The section 4 in[ Supplementary\_information](https://github.com/vidhya2205/TCGA-analysis_SARC_DEA_ML_stage3_HackBio/blob/main/Report/Supplementary%20Information.md) provides a detailed overview of the genes identified by the ML 
+Several genes, such as ENSG00000173369 and ENSG00000124491, were more expressed in the ≥40 groups, while others, like ENSG00000173388 and ENSG00000119582, showed higher expression in the younger group. These differences suggest that these genes may serve as molecular markers for aging. The section 4 in[ Supplementary\_information](https://github.com/2021dr00/Hackbio-cancer-internship/blob/main/Stage3/Report/Supplementary%20Information.md) provides a detailed overview of the genes identified by the ML 
 
 <p align = center>
   <kbd>
